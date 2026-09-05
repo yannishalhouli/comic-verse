@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ComicVerse - Ma Bibliothèque</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        gray: {
+                            850: '#1f2937',
+                            900: '#111827',
+                            950: '#030712',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Chart.js for Statistics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #111827; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+        
+        /* Smooth transitions */
+        .comic-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .comic-card-grid:hover { transform: translateY(-5px); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); }
+        .comic-card-list:hover { transform: translateX(5px); }
+        
+        /* Modal fade-in */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .modal-active { display: flex !important; animation: fadeIn 0.2s ease-out; }
+
+        /* Rating Stars */
+        .star-rating { color: #fbbf24; }
+        
+        /* Floating Action Button (Mobile) */
+        .fab { transition: transform 0.2s, box-shadow 0.2s; }
+        .fab:active { transform: scale(0.95); }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200 min-h-screen font-sans flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-gray-950 border-b border-gray-800 sticky top-0 z-40 shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-xl shadow-lg shadow-indigo-600/20">
+                    <i class="fas fa-mask"></i>
+                </div>
+                <h1 class="text-2xl font-bold text-white tracking-tight">Comic<span class="text-indigo-500">Verse</span></h1>
+            </div>
+            
+            <div class="flex flex-wrap items-center gap-3">
+                <button onclick="openStatsModal()" class="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-sm font-medium rounded-lg transition-colors border border-gray-700 text-gray-200">
+                    <i class="fas fa-chart-pie md:mr-2 text-indigo-400"></i><span class="hidden md:inline">Statistiques</span>
+                </button>
+
+                <button onclick="document.getElementById('importInput').click()" class="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-sm font-medium rounded-lg transition-colors border border-gray-700">
+                    <i class="fas fa-file-import md:mr-2"></i><span class="hidden md:inline">Importer</span>
+                </button>
+                <input type="file" id="importInput" accept=".json" class="hidden" onchange="importJSON(event)">
+                
+                <button onclick="exportJSON()" class="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-sm font-medium rounded-lg transition-colors border border-gray-700">
+                    <i class="fas fa-file-export md:mr-2"></i><span class="hidden md:inline">Exporter</span>
+                </button>
+                
+                <button onclick="openModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-indigo-600/20">
+                    <i class="fas fa-plus mr-2"></i>Ajouter
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+        
+        <!-- Filters & Tools Bar (Naturel, non-sticky pour une lisibilité maximale) -->
+        <div class="bg-gray-850 p-4 rounded-xl border border-gray-800 mb-6 shadow-sm flex flex-col lg:flex-row gap-4 justify-between items-center">
+            
+            <div class="flex flex-col md:flex-row gap-3 w-full lg:w-auto flex-grow">
+                <div class="relative flex-grow max-w-md">
+                    <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500"></i>
+                    <input type="text" id="searchInput" placeholder="Rechercher (titre, série)..." class="w-full bg-gray-900 border border-gray-700 text-white rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                
+                <select id="filterCollection" class="bg-gray-900 border border-gray-700 text-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <option value="">Tous formats/éditeurs</option>
+                </select>
+                
+                <select id="filterStatus" class="bg-gray-900 border border-gray-700 text-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <option value="">Tous statuts</option>
+                    <option value="read">Lu</option>
+                    <option value="unread">À lire</option>
+                </select>
+            </div>
+            
+            <div class="flex items-center gap-3 w-full lg:w-auto justify-end">
+                <div class="flex items-center gap-2 border-r border-gray-700 pr-3">
+                    <span class="text-xs text-gray-500">Trier par:</span>
+                    <select id="sortSelect" class="bg-gray-900 border border-gray-700 text-gray-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                        <option value="dateDesc">Plus récents</option>
+                        <option value="titleAsc">Titre (A-Z)</option>
+                        <option value="ratingDesc">Mieux notés</option>
+                        <option value="priceDesc">Prix décroissant</option>
+                    </select>
+                </div>
+                
+                <div class="bg-gray-900 p-1 rounded-lg border border-gray-700 flex">
+                    <button id="btnGridView" onclick="setViewMode('grid')" class="px-3 py-1.5 rounded-md text-gray-400 hover:text-white transition-colors bg-gray-800 text-white shadow" title="Vue Grille">
+                        <i class="fas fa-th-large"></i>
+                    </button>
+                    <button id="btnListView" onclick="setViewMode('list')" class="px-3 py-1.5 rounded-md text-gray-400 hover:text-white transition-colors" title="Vue Liste">
+                        <i class="fas fa-list"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="mb-4 text-gray-400 text-sm font-medium flex justify-between items-end">
+            <span><span id="comicCount">0</span> résultat(s)</span>
+        </div>
+
+        <!-- Container (Grid or List via JS) -->
+        <div id="comicsContainer" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6">
+            <!-- Cards will be injected here -->
+        </div>
+        
+        <!-- Empty State -->
+        <div id="emptyState" class="hidden flex-col items-center justify-center py-20 text-center">
+            <div class="w-24 h-24 bg-gray-800 rounded-full flex items-center justify-center mb-4">
+                <i class="fas fa-ghost text-4xl text-gray-600"></i>
+            </div>
+            <h3 class="text-xl font-bold text-white mb-2">Aucun comic trouvé</h3>
+            <p class="text-gray-400 max-w-md">Modifiez vos filtres ou ajoutez une nouvelle pépite à votre collection.</p>
+        </div>
+
+        <!-- Floating Action Button (Uniquement sur Mobile) -->
+        <button onclick="openModal()" class="fab fixed bottom-6 right-6 md:hidden w-14 h-14 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xl shadow-[0_4px_20px_rgba(79,70,229,0.5)] z-40">
+            <i class="fas fa-plus"></i>
+        </button>
+
+    </main>
+
+    <!-- Modal Statistiques & Tableau de bord -->
+    <div id="statsModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-3xl shadow-2xl relative my-auto max-h-[90vh] flex flex-col">
+            <div class="p-5 border-b border-gray-800 flex justify-between items-center sticky top-0 bg-gray-900 rounded-t-2xl z-10 flex-shrink-0">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 bg-indigo-600/20 text-indigo-400 rounded-lg flex items-center justify-center text-sm">
+                        <i class="fas fa-chart-pie"></i>
+                    </div>
+                    <h2 class="text-xl font-bold text-white">Tableau de bord & Statistiques</h2>
+                </div>
+                <button onclick="closeStatsModal()" class="text-gray-400 hover:text-white transition-colors">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            
+            <div class="p-6 overflow-y-auto space-y-6 custom-scrollbar">
+                <!-- KPIs -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="bg-gray-850 p-4 rounded-xl border border-gray-800 shadow-sm flex flex-col justify-center">
+                        <span class="text-gray-400 text-xs font-medium mb-1"><i class="fas fa-book mr-1.5 text-indigo-400"></i>Total Comics</span>
+                        <span class="text-2xl font-bold text-white" id="statTotal">0</span>
+                    </div>
+                    <div class="bg-gray-850 p-4 rounded-xl border border-gray-800 shadow-sm flex flex-col justify-center">
+                        <span class="text-gray-400 text-xs font-medium mb-1"><i class="fas fa-euro-sign mr-1.5 text-emerald-400"></i>Valeur</span>
+                        <span class="text-2xl font-bold text-white" id="statValue">0 €</span>
+                    </div>
+                    <div class="bg-gray-850 p-4 rounded-xl border border-gray-800 shadow-sm flex flex-col justify-center">
+                        <span class="text-gray-400 text-xs font-medium mb-1"><i class="fas fa-check-double mr-1.5 text-blue-400"></i>Taux lecture</span>
+                        <div class="flex items-end gap-2">
+                            <span class="text-xl font-bold text-white" id="statRead">0%</span>
+                            <div class="w-full bg-gray-700 h-2 rounded-full mb-1 flex-grow">
+                                <div class="bg-blue-500 h-2 rounded-full" id="statReadBar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Répartition graphique -->
+                <div class="bg-gray-850 p-5 rounded-xl border border-gray-800 shadow-sm">
+                    <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <i class="fas fa-layer-group text-indigo-400"></i> Répartition par éditeur / format
+                    </h3>
+                    <div class="h-64 flex items-center justify-center relative">
+                        <canvas id="collectionChart" class="max-h-full"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4 border-t border-gray-800 flex justify-end flex-shrink-0">
+                <button onclick="closeStatsModal()" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors border border-gray-700">Fermer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Form (Add/Edit) -->
+    <div id="comicModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl shadow-2xl relative my-auto max-h-[90vh] flex flex-col">
+            <div class="p-5 border-b border-gray-800 flex justify-between items-center sticky top-0 bg-gray-900 rounded-t-2xl z-10 flex-shrink-0">
+                <h2 id="modalTitle" class="text-xl font-bold text-white">Ajouter un Comic</h2>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-white transition-colors">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            
+            <form id="comicForm" onsubmit="saveComic(event)" class="p-6 overflow-y-auto flex-grow custom-scrollbar">
+                <input type="hidden" id="comicId">
+                <input type="hidden" id="comicDateAdded">
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Colonne 1 : Infos de base -->
+                    <div class="space-y-4">
+                        <h3 class="text-sm font-semibold text-indigo-400 uppercase tracking-wider border-b border-gray-800 pb-2">Informations</h3>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-1">Titre <span class="text-red-500">*</span></label>
+                            <input type="text" id="formTitle" required class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-indigo-500 outline-none">
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Série <span class="text-red-500">*</span></label>
+                                <input type="text" id="formSeries" required class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-indigo-500 outline-none" list="seriesList">
+                                <datalist id="seriesList"></datalist>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Tome <span class="text-red-500">*</span></label>
+                                <input type="number" id="formVolume" min="0" step="1" required class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-indigo-500 outline-none">
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-1">Éditeur / Format</label>
+                            <input type="text" id="formCollection" placeholder="ex: Panini / 100% Marvel" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-indigo-500 outline-none" list="collectionList">
+                            <datalist id="collectionList"></datalist>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-1">URL de la couverture</label>
+                            <div class="flex gap-2">
+                                <input type="url" id="formCover" placeholder="https://..." class="flex-grow min-w-0 bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-indigo-500 outline-none">
+                                <div class="w-10 h-10 rounded border border-gray-700 bg-gray-900 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                                    <img id="coverPreview" src="" class="w-full h-full object-cover hidden">
+                                    <i id="coverIcon" class="fas fa-image text-gray-600"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Colonne 2 : Enrichissement -->
+                    <div class="space-y-4">
+                        <h3 class="text-sm font-semibold text-emerald-400 uppercase tracking-wider border-b border-gray-800 pb-2">Enrichissement</h3>
+                        
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Prix d'achat (€)</label>
+                                <input type="number" id="formPrice" min="0" step="0.01" placeholder="0.00" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-indigo-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Note (/5)</label>
+                                <div class="flex items-center justify-between bg-gray-950 border border-gray-700 rounded-lg px-3 py-2">
+                                    <input type="hidden" id="formRating" value="0">
+                                    <div id="starContainer" class="flex gap-1">
+                                        <i class="fas fa-star text-gray-600 cursor-pointer hover:scale-110 transition-transform" data-val="1"></i>
+                                        <i class="fas fa-star text-gray-600 cursor-pointer hover:scale-110 transition-transform" data-val="2"></i>
+                                        <i class="fas fa-star text-gray-600 cursor-pointer hover:scale-110 transition-transform" data-val="3"></i>
+                                        <i class="fas fa-star text-gray-600 cursor-pointer hover:scale-110 transition-transform" data-val="4"></i>
+                                        <i class="fas fa-star text-gray-600 cursor-pointer hover:scale-110 transition-transform" data-val="5"></i>
+                                    </div>
+                                    <button type="button" id="clearStarsBtn" class="text-gray-500 hover:text-gray-300 text-xs hidden" title="Effacer la note"><i class="fas fa-times"></i></button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-1">Avis / Critique</label>
+                            <textarea id="formReview" rows="3" placeholder="Qu'avez-vous pensé de ce tome ?" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-indigo-500 outline-none resize-none"></textarea>
+                        </div>
+
+                        <div class="pt-2">
+                            <label class="flex items-center space-x-3 cursor-pointer p-3 bg-gray-950 border border-gray-700 rounded-lg hover:border-gray-600 transition-colors">
+                                <input type="checkbox" id="formIsRead" class="w-5 h-5 rounded border-gray-700 text-indigo-600 focus:ring-indigo-600 bg-gray-800">
+                                <span class="text-sm font-medium text-white">Marqué comme lu</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="pt-6 mt-4 border-t border-gray-800 flex gap-3 flex-shrink-0">
+                    <button type="button" onclick="closeModal()" class="flex-1 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-white font-medium rounded-lg transition-colors border border-gray-700">Annuler</button>
+                    <button type="submit" class="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg transition-colors shadow-lg shadow-indigo-600/20">Sauvegarder</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-4 right-4 bg-gray-800 border border-gray-700 text-white px-6 py-3 rounded-lg shadow-xl transform translate-y-20 opacity-0 transition-all duration-300 z-50 flex items-center gap-3">
+        <i class="fas fa-check-circle text-green-500"></i>
+        <span id="toastMsg">Opération réussie</span>
+    </div>
+
+    <script>
+        // --- DATA STATE ---
+        let comics = [];
+        let viewMode = 'grid'; // 'grid' or 'list'
+        let chartInstance = null;
+        const STORAGE_KEY = 'comicverse_data';
+
+        // Default Data with enriched fields
+        const defaultComics = [
+            { id: '1', title: 'La Cour des Hiboux', series: 'Batman', volume: 1, coverUrl: 'https://images.unsplash.com/photo-1612036782180-6f0b6cd846fe?auto=format&fit=crop&q=80&w=600', collection: 'Urban - DC Essentiels', isRead: true, price: 35.00, rating: 5, review: 'Un classique moderne incontournable.', dateAdded: 1672531200000 },
+            { id: '2', title: 'Kraven La Dernière Chasse', series: 'Spider-Man', volume: 1, coverUrl: 'https://images.unsplash.com/photo-1608889175250-c3b0c1667d3a?auto=format&fit=crop&q=80&w=600', collection: 'Panini - Must-Have', isRead: false, price: 15.99, rating: 0, review: '', dateAdded: 1675209600000 },
+            { id: '3', title: 'L\'Arme X', series: 'Wolverine', volume: 1, coverUrl: 'https://images.unsplash.com/photo-1569003339405-ea396a5a8a90?auto=format&fit=crop&q=80&w=600', collection: 'Panini - 100% Marvel', isRead: true, price: 18.50, rating: 4, review: 'Origines sombres et violentes, dessin fantastique.', dateAdded: 1677628800000 },
+            { id: '4', title: 'Watchmen', series: 'Watchmen', volume: 1, coverUrl: 'https://images.unsplash.com/photo-1534809040385-df448267d2b8?auto=format&fit=crop&q=80&w=600', collection: 'Urban Premium', isRead: true, price: 20.00, rating: 5, review: '', dateAdded: 1680307200000 }
+        ];
+
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            setupEventListeners();
+        });
+
+        function loadData() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                try {
+                    comics = JSON.parse(stored);
+                } catch (e) {
+                    console.error('Erreur localStorage', e);
+                    comics = defaultComics;
+                }
+            } else {
+                comics = [...defaultComics];
+                saveData();
+            }
+            updateDashboard();
+            updateFiltersUI();
+            renderComics();
+        }
+
+        function saveData() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(comics));
+            updateDashboard();
+            updateFiltersUI();
+        }
+
+        // --- VIEW MODE ---
+        function setViewMode(mode) {
+            viewMode = mode;
+            
+            const btnGrid = document.getElementById('btnGridView');
+            const btnList = document.getElementById('btnListView');
+            const container = document.getElementById('comicsContainer');
+            
+            if(mode === 'grid') {
+                btnGrid.classList.add('bg-gray-800', 'text-white', 'shadow');
+                btnGrid.classList.remove('text-gray-400');
+                btnList.classList.remove('bg-gray-800', 'text-white', 'shadow');
+                btnList.classList.add('text-gray-400');
+                
+                container.className = 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6';
+            } else {
+                btnList.classList.add('bg-gray-800', 'text-white', 'shadow');
+                btnList.classList.remove('text-gray-400');
+                btnGrid.classList.remove('bg-gray-800', 'text-white', 'shadow');
+                btnGrid.classList.add('text-gray-400');
+                
+                container.className = 'flex flex-col gap-3';
+            }
+            renderComics();
+        }
+
+        // --- RENDER LOGIC ---
+        function renderComics() {
+            const container = document.getElementById('comicsContainer');
+            const emptyState = document.getElementById('emptyState');
+            
+            // Filters
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const filterCollection = document.getElementById('filterCollection').value;
+            const filterStatus = document.getElementById('filterStatus').value;
+            const sortMethod = document.getElementById('sortSelect').value;
+
+            let filtered = comics.filter(c => {
+                const searchStr = `${c.title} ${c.series}`.toLowerCase();
+                const matchSearch = searchStr.includes(searchTerm);
+                const matchCollection = filterCollection === '' || c.collection === filterCollection;
+                
+                let matchStatus = true;
+                if(filterStatus === 'read') matchStatus = c.isRead;
+                if(filterStatus === 'unread') matchStatus = !c.isRead;
+                
+                return matchSearch && matchCollection && matchStatus;
+            });
+
+            // Sorting
+            filtered.sort((a, b) => {
+                if (sortMethod === 'titleAsc') return a.title.localeCompare(b.title);
+                if (sortMethod === 'ratingDesc') return (b.rating || 0) - (a.rating || 0);
+                if (sortMethod === 'priceDesc') return (b.price || 0) - (a.price || 0);
+                // Default: dateDesc (newest first based on dateAdded or id fallback)
+                const dateA = a.dateAdded || 0;
+                const dateB = b.dateAdded || 0;
+                return dateB - dateA;
+            });
+
+            document.getElementById('comicCount').textContent = filtered.length;
+            container.innerHTML = '';
+            
+            if (filtered.length === 0) {
+                container.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                return;
+            } 
+            
+            container.classList.remove('hidden');
+            emptyState.classList.add('hidden');
+            
+            filtered.forEach(comic => {
+                const fallbackImg = `https://ui-avatars.com/api/?name=${encodeURIComponent(comic.series)}&background=1f2937&color=fff&size=500&font-size=0.2`;
+                const coverSrc = comic.coverUrl || fallbackImg;
+                
+                // Helper functions for UI
+                const getStars = (rating) => {
+                    if(!rating || rating === 0) return '';
+                    let stars = '';
+                    for(let i=1; i<=5; i++) {
+                        stars += `<i class="${i <= rating ? 'fas text-amber-400' : 'far text-gray-600'} fa-star text-xs"></i>`;
+                    }
+                    return `<div class="flex">${stars}</div>`;
+                };
+
+                const readBadge = comic.isRead ? '<span class="bg-emerald-500/90 text-white text-xs font-bold px-2 py-1 rounded backdrop-blur-sm shadow-sm"><i class="fas fa-check"></i></span>' : '<span class="bg-gray-800/90 text-gray-300 text-xs font-bold px-2 py-1 rounded border border-gray-600 backdrop-blur-sm"><i class="far fa-clock"></i></span>';
+                const priceTxt = comic.price ? `<span class="text-xs text-gray-400 bg-gray-900 px-2 py-0.5 rounded border border-gray-700">${comic.price.toFixed(2)}€</span>` : '';
+
+                if (viewMode === 'grid') {
+                    // --- GRID VIEW ---
+                    container.innerHTML += `
+                        <div class="comic-card comic-card-grid bg-gray-850 border border-gray-800 rounded-xl overflow-hidden flex flex-col group relative">
+                            <div class="aspect-[2/3] w-full bg-gray-900 relative overflow-hidden">
+                                <img src="${coverSrc}" alt="${comic.title}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" onerror="this.src='${fallbackImg}'">
+                                <div class="absolute top-2 right-2 z-10">${readBadge}</div>
+                                <div class="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-3 backdrop-blur-[2px] p-4 text-center z-20">
+                                    ${comic.review ? `<p class="text-xs text-gray-300 italic line-clamp-3 mb-2">"${comic.review}"</p>` : ''}
+                                    <div class="flex gap-2">
+                                        <button onclick="editComic('${comic.id}')" class="w-10 h-10 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full flex items-center justify-center transition-colors shadow-lg"><i class="fas fa-pen"></i></button>
+                                        <button onclick="deleteComic('${comic.id}')" class="w-10 h-10 bg-gray-800 border border-gray-600 hover:bg-red-600 hover:border-red-600 text-white rounded-full flex items-center justify-center transition-colors shadow-lg"><i class="fas fa-trash"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="p-4 flex flex-col flex-grow relative">
+                                <div class="flex justify-between items-start mb-1 pr-6">
+                                    <div class="text-xs text-indigo-400 font-semibold uppercase tracking-wider line-clamp-1">${comic.series} <span class="text-gray-500 ml-1">#${comic.volume}</span></div>
+                                    ${priceTxt}
+                                </div>
+                                <h3 class="text-white font-bold leading-tight mb-2 line-clamp-2 pr-6" title="${comic.title}">${comic.title}</h3>
+                                <div class="mt-auto pt-2 border-t border-gray-800 flex justify-between items-center">
+                                    <span class="text-[11px] text-gray-400 flex items-center gap-1.5 line-clamp-1 truncate pr-2"><i class="fas fa-bookmark text-gray-600"></i> ${comic.collection || '-'}</span>
+                                    ${getStars(comic.rating)}
+                                </div>
+                                
+                                <!-- Action rapide Mobile (Visible uniquement sur mobile) -->
+                                <button onclick="editComic('${comic.id}')" class="absolute top-4 right-3 w-8 h-8 bg-gray-800 border border-gray-700 text-gray-400 hover:text-white rounded-full flex lg:hidden items-center justify-center shadow z-10 transition-colors">
+                                    <i class="fas fa-ellipsis-v text-xs"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    // --- LIST VIEW ---
+                    container.innerHTML += `
+                        <div class="comic-card comic-card-list bg-gray-850 border border-gray-800 rounded-xl overflow-hidden flex items-center p-3 gap-4 relative">
+                            <div class="w-16 h-24 flex-shrink-0 rounded bg-gray-900 relative overflow-hidden">
+                                <img src="${coverSrc}" class="w-full h-full object-cover" onerror="this.src='${fallbackImg}'">
+                            </div>
+                            <div class="flex-grow min-w-0">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="text-xs text-indigo-400 font-bold uppercase tracking-wider">${comic.series} #${comic.volume}</span>
+                                </div>
+                                <h3 class="text-white font-bold text-lg truncate">${comic.title}</h3>
+                                <div class="flex items-center gap-3 text-sm text-gray-400 mt-1">
+                                    <span class="truncate"><i class="fas fa-bookmark mr-1"></i>${comic.collection || 'Non spécifié'}</span>
+                                    ${comic.price ? `<span><i class="fas fa-tag mr-1"></i>${comic.price.toFixed(2)}€</span>` : ''}
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-end justify-center gap-2 pr-2 hidden sm:flex min-w-[120px]">
+                                ${comic.isRead ? '<span class="text-emerald-400 text-sm"><i class="fas fa-check-circle mr-1"></i>Lu</span>' : '<span class="text-gray-500 text-sm"><i class="far fa-clock mr-1"></i>À lire</span>'}
+                                ${getStars(comic.rating)}
+                            </div>
+                            <div class="flex flex-col sm:flex-row gap-2 border-l border-gray-700 pl-4 ml-2">
+                                <button onclick="editComic('${comic.id}')" class="w-8 h-8 bg-gray-800 hover:bg-indigo-600 text-gray-300 hover:text-white rounded flex items-center justify-center transition-colors"><i class="fas fa-pen"></i></button>
+                                <button onclick="deleteComic('${comic.id}')" class="w-8 h-8 bg-gray-800 hover:bg-red-600 text-gray-300 hover:text-white rounded flex items-center justify-center transition-colors"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+        }
+
+        // --- DASHBOARD LOGIC ---
+        function updateDashboard() {
+            // Stats Calculations
+            const total = comics.length;
+            const read = comics.filter(c => c.isRead).length;
+            const value = comics.reduce((sum, c) => sum + (parseFloat(c.price) || 0), 0);
+            const readPercent = total === 0 ? 0 : Math.round((read / total) * 100);
+
+            // Update DOM
+            const statTotal = document.getElementById('statTotal');
+            const statValue = document.getElementById('statValue');
+            const statRead = document.getElementById('statRead');
+            const statReadBar = document.getElementById('statReadBar');
+
+            if (statTotal) statTotal.textContent = total;
+            if (statValue) statValue.textContent = value.toFixed(2) + ' €';
+            if (statRead) statRead.textContent = readPercent + '%';
+            if (statReadBar) statReadBar.style.width = readPercent + '%';
+
+            // Chart Configuration
+            const ctx = document.getElementById('collectionChart');
+            if (!ctx) return;
+            
+            // Extract collections data for chart
+            const collections = {};
+            comics.forEach(c => {
+                const col = c.collection ? c.collection.split('-')[0].trim() : 'Autres';
+                collections[col] = (collections[col] || 0) + 1;
+            });
+            
+            const labels = Object.keys(collections);
+            const data = Object.values(collections);
+            
+            // Destroy previous chart instance if it exists
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+            
+            if(total === 0) return;
+
+            // Draw new Chart
+            Chart.defaults.color = '#9ca3af';
+            Chart.defaults.font.family = 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+
+            chartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: [
+                            '#4f46e5',
+                            '#0ea5e9',
+                            '#10b981',
+                            '#f59e0b',
+                            '#8b5cf6',
+                            '#ec4899',
+                            '#6b7280'
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#1f2937'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right', labels: { boxWidth: 12, padding: 15 } },
+                        tooltip: { backgroundColor: 'rgba(17, 24, 39, 0.9)', titleColor: '#fff', bodyColor: '#ccc', borderColor: '#374151', borderWidth: 1 }
+                    },
+                    cutout: '70%'
+                }
+            });
+        }
+
+        // --- STATS MODAL LOGIC ---
+        function openStatsModal() {
+            const modal = document.getElementById('statsModal');
+            modal.classList.add('modal-active');
+            document.body.style.overflow = 'hidden';
+            updateDashboard();
+            if (chartInstance) {
+                setTimeout(() => chartInstance.resize(), 50);
+            }
+        }
+
+        function closeStatsModal() {
+            const modal = document.getElementById('statsModal');
+            modal.classList.remove('modal-active');
+            document.body.style.overflow = 'auto';
+        }
+
+        // --- FILTERS UI ---
+        function updateFiltersUI() {
+            const collectionSelect = document.getElementById('filterCollection');
+            const seriesDatalist = document.getElementById('seriesList');
+            const collectionDatalist = document.getElementById('collectionList');
+            
+            const uniqueSeries = [...new Set(comics.map(c => c.series))].filter(Boolean).sort();
+            const uniqueCollections = [...new Set(comics.map(c => c.collection))].filter(Boolean).sort();
+
+            const currentCollection = collectionSelect.value;
+            collectionSelect.innerHTML = '<option value="">Tous formats/éditeurs</option>' + uniqueCollections.map(c => `<option value="${c}">${c}</option>`).join('');
+            if (uniqueCollections.includes(currentCollection)) collectionSelect.value = currentCollection;
+
+            seriesDatalist.innerHTML = uniqueSeries.map(s => `<option value="${s}">`).join('');
+            collectionDatalist.innerHTML = uniqueCollections.map(c => `<option value="${c}">`).join('');
+        }
+
+        function setupEventListeners() {
+            ['searchInput', 'filterCollection', 'filterStatus', 'sortSelect'].forEach(id => {
+                document.getElementById(id).addEventListener('input', renderComics);
+            });
+            
+            // Preview de couverture en direct
+            document.getElementById('formCover').addEventListener('input', updateCoverPreview);
+
+            // Logique interactive des étoiles
+            const stars = document.querySelectorAll('#starContainer i');
+            stars.forEach(star => {
+                star.addEventListener('click', (e) => {
+                    const rating = parseInt(e.target.getAttribute('data-val'));
+                    setRating(rating);
+                });
+            });
+
+            document.getElementById('clearStarsBtn').addEventListener('click', () => {
+                setRating(0);
+            });
+        }
+        
+        function updateCoverPreview() {
+            const url = document.getElementById('formCover').value;
+            const preview = document.getElementById('coverPreview');
+            const icon = document.getElementById('coverIcon');
+            
+            if(url) {
+                preview.src = url;
+                preview.classList.remove('hidden');
+                icon.classList.add('hidden');
+                
+                // Si l'image casse (lien mort) on remet l'icône
+                preview.onerror = () => {
+                    preview.classList.add('hidden');
+                    icon.classList.remove('hidden');
+                };
+            } else {
+                preview.classList.add('hidden');
+                icon.classList.remove('hidden');
+            }
+        }
+
+        function setRating(rating) {
+            document.getElementById('formRating').value = rating;
+            const stars = document.querySelectorAll('#starContainer i');
+            const clearBtn = document.getElementById('clearStarsBtn');
+            
+            stars.forEach(s => {
+                const val = parseInt(s.getAttribute('data-val'));
+                if(val <= rating) {
+                    s.classList.replace('text-gray-600', 'text-amber-400');
+                } else {
+                    s.classList.replace('text-amber-400', 'text-gray-600');
+                }
+            });
+            
+            if (rating > 0) clearBtn.classList.remove('hidden');
+            else clearBtn.classList.add('hidden');
+        }
+
+        // --- MODAL & FORM LOGIC ---
+        function openModal(mode = 'add') {
+            const modal = document.getElementById('comicModal');
+            const title = document.getElementById('modalTitle');
+            const form = document.getElementById('comicForm');
+            
+            if (mode === 'add') {
+                title.textContent = 'Ajouter un Comic';
+                form.reset();
+                document.getElementById('comicId').value = '';
+                document.getElementById('comicDateAdded').value = Date.now();
+                setRating(0);
+                updateCoverPreview();
+            } else {
+                title.textContent = 'Modifier le Comic';
+            }
+            
+            modal.classList.add('modal-active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal() {
+            document.getElementById('comicModal').classList.remove('modal-active');
+            document.body.style.overflow = 'auto';
+        }
+
+        document.getElementById('comicModal').addEventListener('click', (e) => {
+            if (e.target.id === 'comicModal') closeModal();
+        });
+
+        document.getElementById('statsModal').addEventListener('click', (e) => {
+            if (e.target.id === 'statsModal') closeStatsModal();
+        });
+
+        // --- CRUD LOGIC ---
+        function generateId() { return Date.now().toString(36) + Math.random().toString(36).substr(2); }
+
+        function saveComic(e) {
+            e.preventDefault();
+            
+            const id = document.getElementById('comicId').value || generateId();
+            const comicData = {
+                id: id,
+                title: document.getElementById('formTitle').value.trim(),
+                series: document.getElementById('formSeries').value.trim(),
+                volume: parseInt(document.getElementById('formVolume').value, 10),
+                collection: document.getElementById('formCollection').value.trim(),
+                coverUrl: document.getElementById('formCover').value.trim(),
+                price: parseFloat(document.getElementById('formPrice').value) || null,
+                rating: parseInt(document.getElementById('formRating').value, 10) || 0,
+                review: document.getElementById('formReview').value.trim(),
+                isRead: document.getElementById('formIsRead').checked,
+                dateAdded: parseInt(document.getElementById('comicDateAdded').value, 10) || Date.now()
+            };
+
+            const existingIndex = comics.findIndex(c => c.id === id);
+            
+            if (existingIndex >= 0) {
+                comics[existingIndex] = comicData;
+                showToast('Comic mis à jour !');
+            } else {
+                comics.push(comicData);
+                showToast('Comic ajouté à la bibliothèque !');
+            }
+
+            saveData();
+            renderComics();
+            closeModal();
+        }
+
+        function editComic(id) {
+            const comic = comics.find(c => c.id === id);
+            if (!comic) return;
+            
+            document.getElementById('comicId').value = comic.id;
+            document.getElementById('comicDateAdded').value = comic.dateAdded || Date.now();
+            document.getElementById('formTitle').value = comic.title;
+            document.getElementById('formSeries').value = comic.series;
+            document.getElementById('formVolume').value = comic.volume;
+            document.getElementById('formCollection').value = comic.collection || '';
+            document.getElementById('formCover').value = comic.coverUrl || '';
+            document.getElementById('formPrice').value = comic.price || '';
+            document.getElementById('formRating').value = comic.rating || 0;
+            document.getElementById('formReview').value = comic.review || '';
+            document.getElementById('formIsRead').checked = comic.isRead;
+            
+            setRating(comic.rating || 0);
+            updateCoverPreview();
+            
+            openModal('edit');
+        }
+
+        function deleteComic(id) {
+            if (confirm('Êtes-vous sûr de vouloir supprimer ce comic de votre collection ?')) {
+                comics = comics.filter(c => c.id !== id);
+                saveData();
+                renderComics();
+                showToast('Comic supprimé.', 'error');
+            }
+        }
+
+        // --- IMPORT / EXPORT LOGIC ---
+        function exportJSON() {
+            if (comics.length === 0) return alert('La bibliothèque est vide.');
+            const dataStr = JSON.stringify(comics, null, 2);
+            const url = URL.createObjectURL(new Blob([dataStr], { type: "application/json" }));
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `comicverse_export_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('Collection exportée avec succès !');
+        }
+
+        function importJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    if (!Array.isArray(importedData)) throw new Error("Format JSON invalide.");
+                    const validData = importedData.filter(item => item.title && item.series);
+                    if (validData.length === 0) throw new Error("Aucun comic valide trouvé.");
+
+                    if(confirm(`${validData.length} comics trouvés. Fusionner (OK) ou Remplacer (Annuler) ?`)) {
+                        const existingIds = new Set(comics.map(c => c.id));
+                        const newItems = validData.filter(c => !existingIds.has(c.id));
+                        newItems.forEach(c => { if(!c.id) c.id = generateId(); if(!c.dateAdded) c.dateAdded = Date.now(); });
+                        comics = [...comics, ...newItems];
+                    } else {
+                        validData.forEach(c => { if(!c.id) c.id = generateId(); if(!c.dateAdded) c.dateAdded = Date.now();});
+                        comics = validData;
+                    }
+                    saveData(); renderComics(); showToast('Collection importée avec succès !');
+                } catch (error) { alert("Erreur d'importation : " + error.message); }
+                event.target.value = '';
+            };
+            reader.readAsText(file);
+        }
+
+        // --- UTILS ---
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').textContent = message;
+            toast.querySelector('i').className = type === 'error' ? 'fas fa-exclamation-circle text-red-500' : 'fas fa-check-circle text-emerald-500';
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
+        }
+    </script>
+</body>
+</html>
